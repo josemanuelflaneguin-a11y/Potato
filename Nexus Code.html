@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Nexus Code Studio Pro - Ultimate</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        :root {
+            --bg-dark: #121212; --bg-panel: #1e1e1e; --bg-sidebar: #2d2d2d;
+            --text-main: #e0e0e0; --accent: #007acc; --accent-hover: #005f9e;
+            --border: #333333; --header-bg: #1e1e1e; --terminal-bg: #121212;
+            --tabs-bg: #252526; --modal-overlay: rgba(0, 0, 0, 0.75);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background-color: var(--bg-dark); color: var(--text-main); height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+
+        /* --- PANTALLA DE INICIO --- */
+        #startup-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: var(--bg-dark); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 9999; transition: opacity 0.5s ease; }
+        #startup-screen h1 { font-size: 3rem; margin-bottom: 20px; color: var(--accent); text-shadow: 0 0 10px rgba(0, 122, 204, 0.5); }
+        .startup-buttons { display: flex; gap: 15px; margin-top: 10px; }
+        #startup-screen button { padding: 10px 25px; font-size: 1.1rem; background: #2d2d2d; color: white; border: 1px solid var(--border); border-radius: 5px; cursor: pointer; transition: background 0.3s; display: flex; align-items: center; gap: 8px; }
+        #startup-screen button.primary { background: var(--accent); border-color: var(--accent); }
+        #startup-screen button:hover { background: var(--border); }
+        #startup-screen button.primary:hover { background: var(--accent-hover); }
+
+        /* --- BARRA SUPERIOR (HEADER) --- */
+        header { background-color: var(--header-bg); height: 45px; display: flex; justify-content: space-between; align-items: center; padding: 0 15px; border-bottom: 1px solid var(--border); z-index: 50; }
+        .project-selector { display: flex; align-items: center; gap: 10px; }
+        .btn-header { background: #2d2d2d; color: #fff; border: 1px solid var(--border); padding: 5px 10px; border-radius: 4px; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; gap: 5px; transition: 0.2s;}
+        .btn-header:hover { background: var(--accent); }
+        .controls { display: flex; gap: 10px; align-items: center; }
+        .controls button { background: transparent; color: var(--text-main); border: none; cursor: pointer; font-size: 1.1rem; padding: 5px; }
+        .controls button:hover { color: var(--accent); }
+        .controls .btn-run { color: #89d185; font-weight: bold; font-size: 0.9rem; background: #252526; padding: 5px 15px; border-radius: 4px; border: 1px solid #333;}
+        .controls .btn-run:hover { background: #89d185; color: #000; }
+
+        /* --- ESPACIO DE TRABAJO --- */
+        #workspace { display: flex; flex: 1; position: relative; height: calc(100dvh - 45px); }
+
+        /* --- PANELES LATERALES --- */
+        .panel { background-color: var(--bg-panel); width: 260px; display: flex; flex-direction: column; transition: width 0.3s ease; border-right: 1px solid var(--border); overflow: hidden; z-index: 40; }
+        .panel.collapsed { width: 0; border: none; }
+        .panel-header { padding: 12px; font-weight: bold; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; background: var(--bg-sidebar); }
+        
+        .sidebar-toolbar { display: flex; gap: 5px; padding: 5px 10px; background: var(--bg-dark); border-bottom: 1px solid var(--border); }
+        .sidebar-toolbar button { flex: 1; background: transparent; color: #aaa; border: 1px solid transparent; padding: 4px; cursor: pointer; border-radius: 4px; transition: 0.2s; font-size: 0.85rem; }
+        .sidebar-toolbar button:hover { background: var(--bg-panel); color: var(--text-main); border: 1px solid var(--border); }
+
+        .panel-content { padding: 10px; flex: 1; overflow-y: auto; }
+
+        .file-tree ul { list-style: none; }
+        .file-tree li { cursor: pointer; padding: 8px 5px; font-size: 0.95rem; display: flex; align-items: center; justify-content: space-between; border-radius: 4px; border: 1px solid transparent; }
+        .file-tree li.active { background: rgba(0, 122, 204, 0.2); border-color: rgba(0, 122, 204, 0.5); }
+        .file-tree li:hover { background: rgba(255,255,255,0.05); }
+        .file-info { display: flex; align-items: center; gap: 10px; flex: 1; overflow: hidden; }
+        .file-actions { display: none; gap: 8px; font-size: 0.8rem; color: #aaa; }
+        .file-tree li:hover .file-actions { display: flex; }
+        .file-actions i:hover { color: white; }
+
+        /* --- ÁREA CENTRAL --- */
+        #main-area { flex: 1; display: flex; flex-direction: column; position: relative; background-color: var(--bg-dark); }
+        #tabs-bar { background-color: var(--tabs-bg); height: 35px; display: flex; border-bottom: 1px solid var(--border); overflow-x: auto; }
+        .tab { padding: 0 15px; display: flex; align-items: center; gap: 8px; background-color: #2d2d2d; border-right: 1px solid var(--border); cursor: pointer; font-size: 0.85rem; user-select: none; white-space: nowrap; }
+        .tab.active { background-color: var(--bg-dark); border-bottom: 2px solid var(--accent); color: white; }
+
+        .content-view { display: none; flex: 1; width: 100%; height: calc(100% - 35px); position: relative; }
+        .content-view.active { display: block; }
+        #monaco-container { width: 100%; height: 100%; }
+        #project-preview-view { background-color: white; width: 100%; height: 100%; }
+        #project-iframe { width: 100%; height: 100%; border: none; background-color: white; }
+
+        /* --- TECLADO MÓVIL (QoL) --- */
+        #mobile-code-toolbar { display: none; position: absolute; bottom: 0; left: 0; width: 100%; background: #252526; padding: 5px; gap: 5px; border-top: 1px solid #444; z-index: 25; overflow-x: auto; white-space: nowrap; }
+        #mobile-code-toolbar button { background: #333; color: white; border: 1px solid #444; border-radius: 4px; padding: 8px 15px; font-family: monospace; font-size: 1rem; cursor: pointer; }
+        #mobile-code-toolbar button:active { background: var(--accent); }
+
+        /* --- TERMINAL INTERACTIVA --- */
+        #terminal-panel { position: absolute; bottom: 0; left: 0; width: 100%; height: 200px; background-color: var(--terminal-bg); border-top: 1px solid var(--border); display: flex; flex-direction: column; transition: transform 0.3s ease; z-index: 30; }
+        #terminal-panel.collapsed { transform: translateY(100%); }
+        .terminal-header { background: var(--bg-panel); padding: 5px 15px; display: flex; justify-content: space-between; font-size: 0.9rem; align-items: center; }
+        #terminal-output { padding: 10px; font-family: monospace; overflow-y: auto; flex: 1; color: #ccc; font-size: 0.85rem; line-height: 1.4; }
+        .terminal-input-row { display: flex; align-items: center; padding: 5px 10px; background: #000; border-top: 1px solid #222; }
+        .terminal-input-row span { color: #89d185; font-family: monospace; margin-right: 8px; }
+        .terminal-input-row input { flex: 1; background: transparent; border: none; color: white; font-family: monospace; font-size: 0.85rem; outline: none; }
+
+        /* --- MODALES --- */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--modal-overlay); display: flex; justify-content: center; align-items: center; z-index: 10000; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; }
+        .modal-overlay.open { opacity: 1; pointer-events: auto; }
+        .modal-content { background: var(--bg-panel); border: 1px solid var(--border); padding: 25px; border-radius: 8px; width: 90%; max-width: 400px; box-shadow: 0 10px 30px rgba(0,0,0,0.7); }
+        .modal-content h3 { margin-bottom: 15px; color: #fff; }
+        .form-group { margin-bottom: 15px; display: flex; flex-direction: column; gap: 5px; }
+        .form-group label { font-size: 0.85rem; color: #aaa; }
+        .form-group input, .form-group select { padding: 10px; background: var(--bg-dark); border: 1px solid var(--border); color: #fff; border-radius: 4px; font-size: 0.95rem; outline: none; }
+        .form-group input:focus, .form-group select:focus { border-color: var(--accent); }
+        .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+        .modal-actions button { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .btn-cancel { background: #444; color: white; }
+        .btn-confirm { background: var(--accent); color: white; }
+
+        /* --- PANEL DERECHO: IA --- */
+        #right-panel { border-left: 1px solid var(--border); border-right: none; }
+        .ai-chat-box { display: flex; flex-direction: column; height: 100%; gap: 10px;}
+        #ai-messages { flex: 1; overflow-y: auto; font-size: 0.9rem; border: 1px solid var(--border); padding: 10px; background: var(--bg-dark); border-radius: 4px; display: flex; flex-direction: column; gap: 10px;}
+        .ai-msg { padding: 8px; border-radius: 5px; background: #2d2d2d; }
+        .ai-msg.user { background: rgba(0, 122, 204, 0.2); border-left: 3px solid var(--accent); }
+        .ai-msg.bot { border-left: 3px solid #89d185; }
+        .ai-code-block { background: #000; padding: 8px; border-radius: 4px; font-family: monospace; font-size: 0.8rem; margin: 5px 0; overflow-x: auto; position: relative; }
+        .btn-insert-code { position: absolute; top: 5px; right: 5px; background: var(--accent); color: white; border: none; padding: 3px 8px; font-size: 0.7rem; border-radius: 3px; cursor: pointer; }
+        
+        .ai-chat-box input[type="text"], .ai-chat-box input[type="password"] { padding: 10px; background: var(--bg-dark); color: white; border: 1px solid var(--border); border-radius: 4px; outline: none;}
+        .tools-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+        .tools-grid button { background: var(--bg-sidebar); color: white; border: 1px solid var(--border); padding: 8px; cursor: pointer; font-size: 0.8rem; border-radius: 4px; }
+        .tools-grid button:hover { background: var(--border); }
+
+        /* --- CONTROLES MÓVILES --- */
+        .mobile-toggles { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; gap: 15px; z-index: 60; }
+        .mobile-toggles button { background: var(--accent); color: white; border: none; border-radius: 50%; width: 45px; height: 45px; font-size: 1.3rem; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+
+        @media (max-width: 768px) {
+            .panel { width: 85%; position: absolute; height: 100%; }
+            #left-panel { left: 0; transform: translateX(0); }
+            #left-panel.collapsed { transform: translateX(-100%); }
+            #right-panel { right: 0; transform: translateX(0); }
+            #right-panel.collapsed { transform: translateX(100%); }
+            .btn-header span { display: none; }
+            #mobile-code-toolbar { display: flex; } /* Mostrar teclado aux en móvil */
+        }
+    </style>
+</head>
+<body>
+
+    <div id="startup-screen">
+        <h1><i class="fa-solid fa-code"></i> Nexus Studio</h1>
+        <p style="margin-bottom: 20px; color: #aaa;">Iniciando Sistema de Desarrollo Integrado...</p>
+        <div class="startup-buttons">
+            <button onclick="iniciarApp()"><i class="fa-solid fa-folder-open"></i> Último Proyecto</button>
+            <button class="primary" onclick="openProjectModal()"><i class="fa-solid fa-plus"></i> Nuevo Proyecto</button>
+        </div>
+    </div>
+
+    <header>
+        <div class="project-selector">
+            <i id="project-icon" class="fa-solid fa-cubes" style="color: var(--accent)"></i>
+            <span id="project-title" style="font-weight: bold; margin-right: 10px;">Proyecto_1</span>
+            <button class="btn-header" onclick="openProjectModal()"><i class="fa-solid fa-plus"></i> <span>Nuevo</span></button>
+            <button class="btn-header" onclick="descargarZip()" title="Descargar Proyecto ZIP"><i class="fa-solid fa-file-zipper"></i> <span>Exportar</span></button>
+        </div>
+        <div class="controls">
+            <button onclick="toggleTerminal()" title="Ver Consola"><i class="fa-solid fa-terminal"></i></button>
+            <button onclick="ejecutarProyecto()" class="btn-run" title="Ejecutar Código"><i class="fa-solid fa-play"></i> Run</button>
+        </div>
+    </header>
+
+    <div id="workspace">
+        
+        <aside id="left-panel" class="panel collapsed">
+            <div class="panel-header">
+                <span>Explorador</span>
+                <i class="fa-solid fa-xmark" style="cursor:pointer" onclick="togglePanel('left-panel')"></i>
+            </div>
+            <div class="sidebar-toolbar">
+                <button onclick="openFileModal()" title="Crear Archivo"><i class="fa-solid fa-file-circle-plus"></i> + Archivo</button>
+            </div>
+            <div class="panel-content file-tree">
+                <ul id="file-list"></ul>
+            </div>
+        </aside>
+
+        <main id="main-area">
+            <div id="tabs-bar">
+                <div id="tab-code" class="tab active" onclick="switchView('code')"><i class="fa-solid fa-code"></i> <span id="tab-label">index.html</span></div>
+                <div id="tab-preview" class="tab" onclick="switchView('preview')" style="display:none; color: #89d185;"><i class="fa-solid fa-globe"></i> Preview</div>
+            </div>
+
+            <div id="monaco-view" class="content-view active">
+                <div id="monaco-container"></div>
+                <div id="mobile-code-toolbar">
+                    <button onclick="insertAtCursor('{')">{</button>
+                    <button onclick="insertAtCursor('}')">}</button>
+                    <button onclick="insertAtCursor('[')">[</button>
+                    <button onclick="insertAtCursor(']')">]</button>
+                    <button onclick="insertAtCursor('<')"><</button>
+                    <button onclick="insertAtCursor('>')">></button>
+                    <button onclick="insertAtCursor('(')">(</button>
+                    <button onclick="insertAtCursor(')')">)</button>
+                    <button onclick="insertAtCursor(';')">;</button>
+                    <button onclick="insertAtCursor('    ')">TAB</button>
+                </div>
+            </div>
+
+            <div id="project-preview-view" class="content-view">
+                <iframe id="project-iframe" title="Sandbox del Proyecto"></iframe>
+            </div>
+
+            <div id="terminal-panel" class="collapsed">
+                <div class="terminal-header">
+                    <span><i class="fa-solid fa-terminal"></i> Terminal / Output</span>
+                    <i class="fa-solid fa-chevron-down" style="cursor:pointer" onclick="toggleTerminal()"></i>
+                </div>
+                <div id="terminal-output">> Sistema Listo.<br></div>
+                <div class="terminal-input-row">
+                    <span>~/nexus $</span>
+                    <input type="text" id="terminal-input" placeholder="Escribe un comando (help, ls, clear)..." onkeypress="handleTerminalCmd(event)">
+                </div>
+            </div>
+        </main>
+
+        <aside id="right-panel" class="panel collapsed">
+            <div class="panel-header">
+                <span>IA Asistente</span>
+                <i class="fa-solid fa-xmark" style="cursor:pointer" onclick="togglePanel('right-panel')"></i>
+            </div>
+            <div class="panel-content ai-chat-box">
+                <input type="password" id="api-key" placeholder="API Key de Gemini...">
+                <div id="ai-messages">
+                    <div class="ai-msg bot">Hola, soy tu asistente de código integrado.</div>
+                </div>
+                <div class="tools-grid">
+                    <button onclick="aiAction('explicar')"><i class="fa-solid fa-lightbulb"></i> Explicar Cód.</button>
+                    <button onclick="aiAction('debug')"><i class="fa-solid fa-bug"></i> Buscar Error</button>
+                </div>
+                <input type="text" id="ai-input" placeholder="Pídele a la IA..." onkeypress="handleAI(event)">
+            </div>
+        </aside>
+
+        <div class="mobile-toggles">
+            <button onclick="togglePanel('left-panel')"><i class="fa-solid fa-folder"></i></button>
+            <button onclick="togglePanel('right-panel')"><i class="fa-solid fa-robot"></i></button>
+        </div>
+    </div>
+
+    <div id="project-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h3>Nuevo Proyecto</h3>
+            <div class="form-group"><label>Nombre del Proyecto</label><input type="text" id="new-project-name" placeholder="Ej. app-demo"></div>
+            <div class="form-group"><label>Lenguaje</label>
+                <select id="new-project-lang">
+                    <option value="html">HTML/JS/CSS (Web)</option>
+                    <option value="python">Python</option>
+                    <option value="typescript">TypeScript</option>
+                    <option value="cpp">C++</option>
+                </select>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-cancel" onclick="closeModals()">Cancelar</button>
+                <button class="btn-confirm" onclick="crearNuevoProyecto()">Crear</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="file-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h3>Nuevo Archivo</h3>
+            <div class="form-group"><label>Nombre (con extensión)</label><input type="text" id="new-file-name" placeholder="script.js"></div>
+            <div class="modal-actions">
+                <button class="btn-cancel" onclick="closeModals()">Cancelar</button>
+                <button class="btn-confirm" onclick="crearNuevoArchivo()">Añadir</button>
+            </div>
+        </div>
+    </div>
+
+    <script id="iframe-error-catcher" type="text/plain">
+        <script>
+            window.onerror = function(msg, url, line, col, error) {
+                window.parent.postMessage({ type: 'iframeError', msg: msg, line: line }, '*');
+                return false;
+            };
+            console.log = function(...args) { window.parent.postMessage({ type: 'iframeLog', msg: args.join(' ') }, '*'); };
+        <\/script>
+    </script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js"></script>
+    <script>
+        let editor, activeFile = '', currentLang = 'html', appStarted = false;
+        
+        // Plantillas por defecto
+        const TEMPLATES = {
+            html: { 'index.html': `<!DOCTYPE html>\n<html>\n<head>\n  <link rel="stylesheet" href="style.css">\n</head>\n<body>\n  <h1>Hola Web</h1>\n  <button onclick="saludar()">Probar Error JS</button>\n  <script src="main.js"><\/script>\n</body>\n</html>`, 'main.js': `function saludar() {\n  console.log("Botón presionado");\n  // Descomenta la linea de abajo para probar el cazador de errores\n  // funcionInexistente(); \n}`, 'style.css': `body { background: #1e1e1e; color: white; font-family: sans-serif; text-align:center; padding-top: 50px; } button { padding: 10px; cursor: pointer; }` },
+            python: { 'main.py': `print("¡Entorno Python listo!")\n\nfor i in range(3):\n    print(f"Iteración {i}")` },
+            typescript: { 'index.ts': `let msj: string = "TS Compilando...";\nconsole.log(msj);` },
+            cpp: { 'main.cpp': `#include <iostream>\nusing namespace std;\n\nint main() {\n    cout << "C++ Nativo" << endl;\n    return 0;\n}` }
+        };
+
+        const LANG_ICONS = { html: 'fa-html5', css: 'fa-css3', js: 'fa-js', py: 'fa-python', ts: 'fa-code', cpp: 'fa-c', json: 'fa-file-code' };
+
+        // 1. SISTEMA DE AUTOGUARDADO (LocalStorage)
+        let VFS = {};
+        function cargarEstado() {
+            let saved = localStorage.getItem('nexus_vfs');
+            if (saved) {
+                try {
+                    VFS = JSON.parse(saved);
+                    currentLang = localStorage.getItem('nexus_lang') || 'html';
+                    document.getElementById('project-title').innerText = localStorage.getItem('nexus_proj') || 'Proyecto_Restaurado';
+                    return true;
+                } catch(e) { return false; }
+            }
+            return false;
+        }
+
+        function guardarEstado() {
+            if(!appStarted) return;
+            localStorage.setItem('nexus_vfs', JSON.stringify(VFS));
+            localStorage.setItem('nexus_lang', currentLang);
+            localStorage.setItem('nexus_proj', document.getElementById('project-title').innerText);
+        }
+
+        // 2. INICIO DE APP
+        function iniciarApp(forzarNuevo = false) {
+            if (appStarted) return;
+            appStarted = true;
+            document.getElementById('startup-screen').style.opacity = '0';
+            setTimeout(() => { document.getElementById('startup-screen').style.display = 'none'; }, 500);
+
+            if(!forzarNuevo && cargarEstado()) {
+                logTerminal("> [Sistema]: Sesión anterior restaurada.");
+            } else {
+                VFS = JSON.parse(JSON.stringify(TEMPLATES['html']));
+                currentLang = 'html';
+            }
+
+            require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.39.0/min/vs' }});
+            require(['vs/editor/editor.main'], function() {
+                editor = monaco.editor.create(document.getElementById('monaco-container'), {
+                    value: "", theme: 'vs-dark', automaticLayout: true, fontSize: 14, minimap: { enabled: false }
+                });
+                
+                // Guardar al escribir (con debounce)
+                let timeout;
+                editor.onDidChangeModelContent(() => {
+                    clearTimeout(timeout);
+                    timeout = setTimeout(() => {
+                        if(activeFile) VFS[activeFile] = editor.getValue();
+                        guardarEstado();
+                    }, 1000);
+                });
+
+                renderFileTree();
+                let firstFile = Object.keys(VFS)[0];
+                if(firstFile) seleccionarArchivo(firstFile);
+            });
+        }
+
+        // 3. GESTIÓN DE ARCHIVOS (Renombrar / Eliminar)
+        function renderFileTree() {
+            const list = document.getElementById('file-list');
+            list.innerHTML = '';
+            for (let file in VFS) {
+                let ext = file.split('.').pop();
+                let icon = LANG_ICONS[ext] || 'fa-file';
+                
+                let li = document.createElement('li');
+                if(file === activeFile) li.classList.add('active');
+                
+                li.innerHTML = `
+                    <div class="file-info" onclick="seleccionarArchivo('${file}')">
+                        <i class="fa-brands ${icon}" style="color:var(--accent)"></i> 
+                        <span style="overflow:hidden; text-overflow:ellipsis">${file}</span>
+                    </div>
+                    <div class="file-actions">
+                        <i class="fa-solid fa-pen" onclick="renombrarArchivo('${file}', event)" title="Renombrar"></i>
+                        <i class="fa-solid fa-trash" onclick="eliminarArchivo('${file}', event)" title="Eliminar"></i>
+                    </div>
+                `;
+                list.appendChild(li);
+            }
+        }
+
+        function seleccionarArchivo(name) {
+            if (editor && activeFile && VFS[activeFile] !== undefined) VFS[activeFile] = editor.getValue();
+            activeFile = name;
+            let ext = name.split('.').pop();
+            
+            switchView('code');
+            document.getElementById('tab-label').innerText = name;
+            renderFileTree(); // Actualizar clase active
+            
+            if (editor) {
+                let lang = 'plaintext';
+                if(ext==='js') lang='javascript'; else if(ext==='py') lang='python'; else if(ext==='ts') lang='typescript'; else if(['html','css','cpp','json'].includes(ext)) lang=ext;
+                monaco.editor.setModelLanguage(editor.getModel(), lang);
+                editor.setValue(VFS[name] || "");
+            }
+            if (window.innerWidth <= 768) document.getElementById('left-panel').classList.add('collapsed');
+        }
+
+        function eliminarArchivo(name, e) {
+            e.stopPropagation();
+            if(confirm(`¿Eliminar ${name}?`)) {
+                delete VFS[name];
+                if(activeFile === name) activeFile = Object.keys(VFS)[0] || '';
+                renderFileTree();
+                if(activeFile) seleccionarArchivo(activeFile); else editor.setValue('');
+                guardarEstado();
+                logTerminal(`> Eliminado: ${name}`);
+            }
+        }
+
+        function renombrarArchivo(oldName, e) {
+            e.stopPropagation();
+            let newName = prompt("Nuevo nombre:", oldName);
+            if(newName && newName !== oldName && !VFS[newName]) {
+                VFS[newName] = VFS[oldName];
+                delete VFS[oldName];
+                if(activeFile === oldName) activeFile = newName;
+                renderFileTree();
+                seleccionarArchivo(activeFile);
+                guardarEstado();
+            }
+        }
+
+        // 4. NUEVOS PROYECTOS Y ARCHIVOS
+        function openProjectModal() { document.getElementById('project-modal').classList.add('open'); }
+        function openFileModal() { document.getElementById('file-modal').classList.add('open'); }
+        function closeModals() { document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('open')); }
+
+        function crearNuevoProyecto() {
+            let pName = document.getElementById('new-project-name').value || "Nuevo_Proyecto";
+            let pLang = document.getElementById('new-project-lang').value;
+            currentLang = pLang;
+            VFS = JSON.parse(JSON.stringify(TEMPLATES[pLang] || TEMPLATES['html']));
+            document.getElementById('project-title').innerText = pName;
+            
+            closeModals();
+            if (!appStarted) { iniciarApp(true); } 
+            else { 
+                renderFileTree(); 
+                seleccionarArchivo(Object.keys(VFS)[0]); 
+                guardarEstado();
+                logTerminal(`> Proyecto [${pName}] inicializado.`);
+            }
+        }
+
+        function crearNuevoArchivo() {
+            let fName = document.getElementById('new-file-name').value.trim();
+            if (fName && VFS[fName] === undefined) {
+                VFS[fName] = ""; renderFileTree(); seleccionarArchivo(fName); guardarEstado();
+            }
+            closeModals();
+        }
+
+        // 5. TECLADO MÓVIL
+        function insertAtCursor(text) {
+            if(!editor) return;
+            const pos = editor.getPosition();
+            editor.executeEdits("", [{ range: new monaco.Range(pos.lineNumber, pos.column, pos.lineNumber, pos.column), text: text }]);
+            editor.focus();
+        }
+
+        // 6. TERMINAL Y CAZADOR DE ERRORES IFRAME
+        function logTerminal(txt, color="#ccc") {
+            const out = document.getElementById('terminal-output');
+            out.innerHTML += `<span style="color:${color}">${txt}</span><br>`;
+            out.scrollTop = out.scrollHeight;
+        }
+
+        function handleTerminalCmd(e) {
+            if(e.key === 'Enter') {
+                let val = e.target.value.trim();
+                e.target.value = '';
+                logTerminal(`~/nexus $ ${val}`, '#fff');
+                if(val === 'clear') document.getElementById('terminal-output').innerHTML = '';
+                else if(val === 'ls') logTerminal(Object.keys(VFS).join('   '));
+                else if(val === 'help') logTerminal('Comandos nativos: clear, ls, help');
+                else if(val !== '') logTerminal(`bash: ${val}: command not found`, '#ff6b6b');
+            }
+        }
+
+        window.addEventListener('message', (e) => {
+            if(e.data.type === 'iframeError') {
+                document.getElementById('terminal-panel').classList.remove('collapsed');
+                logTerminal(`[Error en Web] Línea ${e.data.line}: ${e.data.msg}`, '#ff6b6b');
+            } else if (e.data.type === 'iframeLog') {
+                logTerminal(`[Console]: ${e.data.msg}`, '#89d185');
+            }
+        });
+
+        // 7. EJECUCIÓN
+        function ejecutarProyecto() {
+            if(editor && activeFile) VFS[activeFile] = editor.getValue();
+            document.getElementById('terminal-panel').classList.remove('collapsed');
+            
+            if (currentLang === 'html') {
+                logTerminal("> Compilando web...");
+                let html = VFS['index.html'] || '';
+                let css = VFS['style.css'] || '';
+                let js = VFS['main.js'] || '';
+                let errorCatcher = document.getElementById('iframe-error-catcher').textContent;
+
+                let code = html
+                    .replace('<head>', `<head>${errorCatcher}<style>${css}</style>`)
+                    .replace('</body>', `<script>${js}<\/script></body>`);
+
+                document.getElementById('project-iframe').srcdoc = code;
+                switchView('preview');
+                document.getElementById('tab-preview').style.display = 'flex';
+                logTerminal("> Montado con éxito.", '#89d185');
+            } else {
+                logTerminal(`> Simulando ejecución de ${currentLang}...`);
+                setTimeout(() => logTerminal(`[Salida simulada]: Programa ejecutado exitosamente.`, '#89d185'), 500);
+            }
+        }
+
+        // 8. DESCARGAR PROYECTO (ZIP)
+        async function descargarZip() {
+            logTerminal("> Empaquetando archivos...");
+            let zip = new JSZip();
+            for(let file in VFS) zip.file(file, VFS[file]);
+            let content = await zip.generateAsync({type:"blob"});
+            let link = document.createElement('a');
+            link.href = URL.createObjectURL(content);
+            link.download = document.getElementById('project-title').innerText + ".zip";
+            link.click();
+            logTerminal("> Proyecto descargado.", '#89d185');
+        }
+
+        // 9. IA ASISTENTE (Insertar, Explicar, Debug)
+        async function handleAI(e) {
+            if (e.key === 'Enter') {
+                enviarPrompt(e.target.value);
+                e.target.value = '';
+            }
+        }
+
+        function aiAction(actionType) {
+            if(!editor) return;
+            let selection = editor.getModel().getValueInRange(editor.getSelection());
+            if(!selection) return alert("Por favor, selecciona un trozo de código en el editor primero.");
+            
+            let prompt = actionType === 'explicar' 
+                ? `Explica de forma muy breve qué hace este código:\n\n${selection}` 
+                : `Encuentra errores y devuelve el código corregido de esto:\n\n${selection}`;
+            
+            enviarPrompt(prompt);
+            document.getElementById('right-panel').classList.remove('collapsed');
+        }
+
+        async function enviarPrompt(text) {
+            const box = document.getElementById('ai-messages');
+            const apiKey = document.getElementById('api-key').value.trim();
+            if (!text) return;
+
+            box.innerHTML += `<div class="ai-msg user"><b>Tú:</b><br>${text.replace(/\n/g, '<br>')}</div>`;
+            box.scrollTop = box.scrollHeight;
+
+            if (!apiKey) {
+                box.innerHTML += `<div class="ai-msg bot" style="color:#ff6b6b">Error: Falta API Key.</div>`;
+                return;
+            }
+
+            const id = 'l-' + Date.now();
+            box.innerHTML += `<div id="${id}" class="ai-msg bot">Pensando...</div>`;
+            box.scrollTop = box.scrollHeight;
+
+            try {
+                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contents: [{ parts: [{ text: text }] }] })
+                });
+                const data = await res.json();
+                document.getElementById(id).remove();
+
+                if (data.error) throw new Error(data.error.message);
+                
+                let botTxt = data.candidates[0].content.parts[0].text;
+                // Formatear bloques de código y añadir botón insertar
+                botTxt = botTxt.replace(/```([\s\S]*?)```/g, (match, code) => {
+                    let cleanCode = code.replace(/^[a-z]+\n/, ''); // Quitar lenguaje de la primera linea
+                    let encoded = btoa(unescape(encodeURIComponent(cleanCode)));
+                    return `<div class="ai-code-block"><button class="btn-insert-code" onclick="insertFromAI('${encoded}')">Insertar</button><pre>${cleanCode.replace(/</g, '&lt;')}</pre></div>`;
+                }).replace(/\n/g, '<br>');
+
+                box.innerHTML += `<div class="ai-msg bot">${botTxt}</div>`;
+            } catch (err) {
+                if(document.getElementById(id)) document.getElementById(id).remove();
+                box.innerHTML += `<div class="ai-msg bot" style="color:#ff6b6b">Error: ${err.message}</div>`;
+            }
+            box.scrollTop = box.scrollHeight;
+        }
+
+        function insertFromAI(base64code) {
+            let code = decodeURIComponent(escape(atob(base64code)));
+            insertAtCursor(code);
+            if(window.innerWidth <= 768) togglePanel('right-panel'); // Ocultar IA en movil tras insertar
+        }
+
+        function switchView(v) { document.querySelectorAll('.content-view, .tab').forEach(e => e.classList.remove('active')); document.getElementById(v==='code'?'monaco-view':'project-preview-view').classList.add('active'); document.getElementById(v==='code'?'tab-code':'tab-preview').classList.add('active'); }
+        function togglePanel(id) { document.getElementById(id).classList.toggle('collapsed'); }
+        function toggleTerminal() { document.getElementById('terminal-panel').classList.toggle('collapsed'); }
+
+    </script>
+</body>
+</html>
